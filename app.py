@@ -4,6 +4,8 @@ import joblib
 import pandas as pd
 import streamlit as st
 import altair as alt
+import numpy as np
+import matplotlib.pyplot as plt
 
 # =========================
 # Config
@@ -17,38 +19,6 @@ st.set_page_config(
 BASE_DIR = Path(__file__).resolve().parent
 MODEL_PATH = BASE_DIR / "model" / "obesity_pipeline.joblib"
 DATA_PATH = BASE_DIR / "Obesity.csv"
-
-# =========================
-# Altair dark theme (evita “sumir” no tema escuro)
-# =========================
-def _altair_dark_theme():
-    return {
-        "config": {
-            "background": "transparent",
-            "view": {"stroke": "transparent"},
-            "axis": {
-                "labelColor": "#e6eefc",
-                "titleColor": "#e6eefc",
-                "gridColor": "rgba(255,255,255,.08)",
-                "domainColor": "rgba(255,255,255,.10)",
-                "tickColor": "rgba(255,255,255,.10)",
-            },
-            "legend": {
-                "labelColor": "#e6eefc",
-                "titleColor": "#e6eefc",
-            },
-            "title": {"color": "#e6eefc"},
-            "range": {
-                "category": [
-                    "#18a0fb", "#24c29c", "#8b5cf6", "#f59e0b",
-                    "#ef4444", "#22c55e", "#e879f9", "#60a5fa"
-                ]
-            },
-        }
-    }
-
-alt.themes.register("custom_dark", _altair_dark_theme)
-alt.themes.enable("custom_dark")
 
 # =========================
 # Dark Theme CSS
@@ -167,7 +137,22 @@ model = load_model()
 # =========================
 # Load data for Insights
 # =========================
-@st.cache_data
+def _resolve_target_col(df: pd.DataFrame) -> Optional[str]:
+    """
+    Padroniza a coluna alvo para os gráficos.
+    Preferência: Obesity > Obesity_level > NObeyesdad > NObeyesdad (variações)
+    """
+    candidates = ["Obesity", "Obesity_level", "NObeyesdad", "NObeyesdad ", "NObeyesdad\r"]
+    for c in candidates:
+        if c in df.columns:
+            return c
+    # fallback por aproximação
+    for c in df.columns:
+        cl = c.strip().lower()
+        if cl in ("obesity", "obesity_level", "nobeyesdad"):
+            return c
+    return None
+
 @st.cache_data
 def load_data() -> pd.DataFrame:
     if not DATA_PATH.exists():
@@ -175,110 +160,30 @@ def load_data() -> pd.DataFrame:
 
     df = pd.read_csv(DATA_PATH)
 
-    # -------------------------
-    # Normaliza nomes de coluna
-    # -------------------------
-    df.columns = [str(c).strip() for c in df.columns]
-    lower_map = {c.lower(): c for c in df.columns}
+    # Padroniza coluna alvo em "Obesity" (para visualização e cálculos)
+    target_col = _resolve_target_col(df)
+    if target_col is not None and target_col != "Obesity":
+        df["Obesity"] = df[target_col]
+    elif target_col == "Obesity":
+        # já está ok
+        pass
 
-    def pick_col(candidates: list[str]) -> str | None:
-        """Retorna o nome REAL da coluna no df, tentando várias opções."""
-        for cand in candidates:
-            if cand in df.columns:
-                return cand
-            lc = cand.lower()
-            if lc in lower_map:
-                return lower_map[lc]
-        return None
-
-    # -------------------------
-    # Detecta colunas principais
-    # -------------------------
-    col_gender = pick_col(["Gender", "Sex"])
-    col_age = pick_col(["Age", "IDADE", "Idade"])
-    col_height = pick_col(["Height", "ALTURA", "Altura"])
-    col_weight = pick_col(["Weight", "PESO", "Peso"])
-
-    # Colunas com nomes diferentes (muito comuns no dataset original)
-    col_family = pick_col(["family_history", "family_history_with_overweight", "Family_history_with_overweight"])
-    col_faf = pick_col(["FAF", "Physical_Activity_Frequency", "PhysicalActivityFrequency", "Atividade_Fisica"])
-
-    # Alvo (varia MUITO de projeto pra projeto)
-    col_target = pick_col([
-        "NObeyesdad", "NObesitydad", "NObesity", "Obesity", "ObesityLevel", "Obesity_Category", "target"
-    ])
-
-    # -------------------------
-    # Cria colunas "canônicas" (sem quebrar o pipeline)
-    # -------------------------
-    # (Essas canônicas são só para insights. O pipeline continua recebendo EN na predição.)
-    if col_gender and "Gender" not in df.columns:
-        df["Gender"] = df[col_gender]
-
-    if col_age and "Age" not in df.columns:
-        df["Age"] = df[col_age]
-
-    if col_height and "Height" not in df.columns:
-        df["Height"] = df[col_height]
-
-    if col_weight and "Weight" not in df.columns:
-        df["Weight"] = df[col_weight]
-
-    if col_family and "family_history" not in df.columns:
-        df["family_history"] = df[col_family]
-
-    if col_faf and "FAF" not in df.columns:
-        df["FAF"] = df[col_faf]
-
-    # -------------------------
-    # BMI / Faixa Etária
-    # -------------------------
+    # BMI
     if "Height" in df.columns and "Weight" in df.columns:
         df["BMI"] = df["Weight"] / (df["Height"] ** 2)
 
-    if "Age" in df.columns:
-        bins = [0, 20, 30, 40, 50, 200]
-        labels = ["<20", "20–29", "30–39", "40–49", "50+"]
-        df["Faixa_Etaria"] = pd.cut(df["Age"], bins=bins, labels=labels, right=False)
-
-    # -------------------------
-    # Labels PT (Gênero / Histórico)
-    # -------------------------
+    # Traduções (apenas visualização)
     if "Gender" in df.columns:
-        df["Gender_PT"] = (
-            df["Gender"].astype(str)
-            .map({"Male": "Masculino", "Female": "Feminino", "M": "Masculino", "F": "Feminino"})
-            .fillna(df["Gender"].astype(str))
-        )
+        df["Gender_PT"] = df["Gender"].map({"Male": "Masculino", "Female": "Feminino"}).fillna(df["Gender"].astype(str))
 
     if "family_history" in df.columns:
-        df["family_history_PT"] = (
-            df["family_history"].astype(str)
-            .map({"yes": "Sim", "no": "Não", "Yes": "Sim", "No": "Não", "1": "Sim", "0": "Não"})
-            .fillna(df["family_history"].astype(str))
-        )
+        df["family_history_PT"] = df["family_history"].map({"yes": "Sim", "no": "Não"}).fillna(df["family_history"].astype(str))
 
-    # -------------------------
-    # Alvo -> Obesity_PT
-    # -------------------------
-    if col_target:
-        df["_target_raw"] = df[col_target].astype(str)
-
-        map_ob = {
-            "Insufficient_Weight": "Peso Insuficiente",
-            "Normal_Weight": "Peso Normal",
-            "Overweight_Level_I": "Sobrepeso Nível I",
-            "Overweight_Level_II": "Sobrepeso Nível II",
-            "Obesity_Type_I": "Obesidade Tipo I",
-            "Obesity_Type_II": "Obesidade Tipo II",
-            "Obesity_Type_III": "Obesidade Tipo III",
-        }
-
-        # Caso o dataset já venha “bonitinho” (ex: "Obesidade Tipo I"), ele mantém
-        df["Obesity_PT"] = df["_target_raw"].map(map_ob).fillna(df["_target_raw"])
-    else:
-        # Ajuda você a ver rapidamente o que veio no CSV
-        df["Obesity_PT"] = None
+    # Faixas etárias (bins do seu requisito)
+    if "Age" in df.columns:
+        bins = [0, 18, 25, 30, 35, 40, 50, 100]
+        labels = ["0–17", "18–24", "25–29", "30–34", "35–39", "40–49", "50–99"]
+        df["Faixa_Etaria"] = pd.cut(df["Age"], bins=bins, labels=labels, right=False)
 
     return df
 
@@ -303,9 +208,9 @@ with tab_inicio:
     with colA:
         card_open("Objetivo", "🎯")
         st.write(
-            "Esta aplicação apoia a **estimativa do nível de obesidade** por meio de um pipeline de **Machine Learning**, "
-            "considerando características do perfil e hábitos. O resultado é **informativo** e deve ser analisado junto a "
-            "uma avaliação profissional."
+            "Esta aplicação foi desenvolvida para **estimar o nível de obesidade** por meio de "
+            "**Machine Learning**, usando informações de perfil e hábitos. "
+            "O resultado é uma **referência analítica** e deve ser interpretado junto com a avaliação clínica."
         )
         card_close()
 
@@ -315,7 +220,7 @@ with tab_inicio:
             """
             1. Acesse **🧠 Predição**  
             2. Preencha os dados do paciente  
-            3. Clique em **✨ Fazer Predição**  
+            3. Clique em **Fazer Predição**  
             4. Analise o resultado e as probabilidades por classe  
             """
         )
@@ -326,7 +231,7 @@ with tab_inicio:
         st.markdown(
             """
             - **Acurácia do modelo:** **95%**  
-            - **Usabilidade agradável**, com interface organizada e leitura clara para apoiar a tomada de decisão  
+            - Interface com **boa usabilidade**, organizada e fácil de interpretar para apoiar a decisão
             """
         )
         card_close()
@@ -356,7 +261,13 @@ with tab_pred:
 
     map_caec = {"Não": "no", "Às vezes": "Sometimes", "Frequentemente": "Frequently", "Sempre": "Always"}
     map_calc = {"Não": "no", "Às vezes": "Sometimes", "Frequentemente": "Frequently", "Sempre": "Always"}
-    map_mtrans = {"Carro": "Automobile", "Moto": "Motorbike", "Bicicleta": "Bike", "Transporte público": "Public_Transportation", "Caminhando": "Walking"}
+    map_mtrans = {
+        "Carro": "Automobile",
+        "Moto": "Motorbike",
+        "Bicicleta": "Bike",
+        "Transporte público": "Public_Transportation",
+        "Caminhando": "Walking",
+    }
 
     col1, col2, col3 = st.columns(3, gap="large")
     with col1:
@@ -473,231 +384,214 @@ with tab_pred:
             card_close()
 
 # =========================
-# TAB: Insights e Métricas (garante aparecer)
+# TAB: Insights e Métricas (SOMENTE os gráficos solicitados)
 # =========================
 with tab_insights:
     section("Insights e Métricas", "📈")
 
-    if df_data is None or df_data.empty:
+    if df_data.empty:
         st.warning(
             "Não encontrei o arquivo **Obesity.csv** na pasta do projeto. "
-            "Confirme se ele está no repositório ao lado do `app.py` (ou ajuste `DATA_PATH`)."
+            "Coloque o CSV ao lado do `app.py` (ou ajuste `DATA_PATH`)."
         )
     else:
-        # =========================
-        # Métricas
-        # =========================
-        total = int(len(df_data))
-        imc_medio = float(df_data["BMI"].mean()) if "BMI" in df_data.columns and df_data["BMI"].notna().any() else None
-        idade_media = float(df_data["Age"].mean()) if "Age" in df_data.columns and df_data["Age"].notna().any() else None
-
-        taxa = None
-        if "Obesity_PT" in df_data.columns and df_data["Obesity_PT"].notna().any():
-            over_ob = ~df_data["Obesity_PT"].isin(["Peso Normal", "Peso Insuficiente"])
-            taxa = float(over_ob.mean() * 100)
-
-        m1, m2, m3, m4 = st.columns(4, gap="large")
-        with m1:
-            card_open("Total de Registros", "🧾")
-            st.markdown(f"## {total}")
-            card_close()
-        with m2:
-            card_open("IMC Médio", "📏")
-            st.markdown(f"## {imc_medio:.2f}" if imc_medio is not None else "## —")
-            card_close()
-        with m3:
-            card_open("Idade Média", "🎂")
-            st.markdown(f"## {idade_media:.1f} anos" if idade_media is not None else "## —")
-            card_close()
-        with m4:
-            card_open("Taxa Sobrepeso/Obesidade", "⚠️")
-            st.markdown(f"## {taxa:.1f}%" if taxa is not None else "## —")
-            card_close()
-
-        st.write("")
-        section("Distribuição dos Níveis", "📊")
-        left, right = st.columns(2, gap="large")
-
-        if "Obesity_PT" in df_data.columns and df_data["Obesity_PT"].notna().any():
-            dist = df_data["Obesity_PT"].value_counts(dropna=True).reset_index()
-            dist.columns = ["Nível", "Frequência"]
-            dist = dist.sort_values("Frequência", ascending=False)
-
-            bar = (
-                alt.Chart(dist)
-                .mark_bar()
-                .encode(
-                    x=alt.X("Nível:N", sort="-y", title="Nível de Obesidade"),
-                    y=alt.Y("Frequência:Q", title="Frequência"),
-                    tooltip=["Nível:N", "Frequência:Q"]
-                )
-                .properties(height=360)
+        # validações mínimas
+        required_target = "Obesity" in df_data.columns
+        if not required_target:
+            st.error(
+                "Não encontrei a coluna alvo para os gráficos. "
+                "Verifique se o CSV possui **Obesity** ou **Obesity_level**."
             )
-
-            pie = (
-                alt.Chart(dist)
-                .mark_arc(innerRadius=60)
-                .encode(
-                    theta=alt.Theta(field="Frequência", type="quantitative"),
-                    color=alt.Color(field="Nível", type="nominal", legend=alt.Legend(title="Nível")),
-                    tooltip=["Nível:N", "Frequência:Q"]
-                )
-                .properties(height=360)
-            )
-
-            with left:
-                card_open("Distribuição de Níveis (Barras)", "📊")
-                st.altair_chart(bar, use_container_width=True)
-                card_close()
-
-            with right:
-                card_open("Proporção de Níveis (Rosca)", "🧿")
-                st.altair_chart(pie, use_container_width=True)
-                card_close()
         else:
-            st.info("Não encontrei a coluna alvo (NObeyesdad/Obesity_PT) para montar os gráficos por nível.")
+            # =========================
+            # 01 + 02 — Distribuição (contagem e %)
+            # =========================
+            section("01 + 02 — Distribuição do nível de obesidade", "📊")
 
-        st.write("")
-        section("Relações e Perfil", "🧠")
-        c1, c2 = st.columns(2, gap="large")
+            vc_count = df_data["Obesity"].value_counts(dropna=False)
+            vc_pct = df_data["Obesity"].value_counts(normalize=True, dropna=False) * 100
 
-        # Scatter Age vs BMI
-        if all(col in df_data.columns for col in ["Age", "BMI"]) and df_data[["Age", "BMI"]].dropna().shape[0] > 0:
-            scatter_df = df_data[["Age", "BMI"] + (["Obesity_PT"] if "Obesity_PT" in df_data.columns else [])].dropna()
-            color_enc = alt.Color("Obesity_PT:N", title="Nível") if "Obesity_PT" in scatter_df.columns else alt.value("#18a0fb")
+            dist_df = pd.DataFrame({
+                "Obesity": vc_count.index.astype(str),
+                "Contagem": vc_count.values,
+                "Percentual": vc_pct.reindex(vc_count.index).values
+            })
 
-            scatter = (
-                alt.Chart(scatter_df)
-                .mark_circle(size=55, opacity=0.55)
-                .encode(
-                    x=alt.X("Age:Q", title="Idade"),
-                    y=alt.Y("BMI:Q", title="IMC"),
-                    color=color_enc,
-                    tooltip=[c for c in ["Age", "BMI", "Obesity_PT"] if c in scatter_df.columns]
-                )
-                .properties(height=360)
-            )
-
+            c1, c2 = st.columns(2, gap="large")
             with c1:
-                card_open("Idade x IMC", "🔎")
-                st.altair_chart(scatter, use_container_width=True)
+                card_open("01 — Distribuição (contagem)", "📊")
+                fig, ax = plt.subplots()
+                ax.bar(dist_df["Obesity"], dist_df["Contagem"])
+                ax.set_title("Distribuição do nível de obesidade (contagem)")
+                ax.set_xlabel("Obesity")
+                ax.set_ylabel("Contagem")
+                ax.tick_params(axis="x", rotation=45)
+                st.pyplot(fig, clear_figure=True)
                 card_close()
-        else:
-            with c1:
-                card_open("Idade x IMC", "🔎")
-                st.info("Dados insuficientes para montar o gráfico (Age/BMI).")
-                card_close()
-
-        # Bar Gender x Obesity
-        if all(col in df_data.columns for col in ["Gender_PT", "Obesity_PT"]) and df_data[["Gender_PT", "Obesity_PT"]].dropna().shape[0] > 0:
-            gdf = (
-                df_data.groupby(["Gender_PT", "Obesity_PT"])
-                .size()
-                .reset_index(name="Frequência")
-            )
-
-            gender_bar = (
-                alt.Chart(gdf)
-                .mark_bar()
-                .encode(
-                    x=alt.X("Gender_PT:N", title="Gênero"),
-                    y=alt.Y("Frequência:Q", title="Frequência"),
-                    color=alt.Color("Obesity_PT:N", title="Nível"),
-                    tooltip=["Gender_PT:N", "Obesity_PT:N", "Frequência:Q"]
-                )
-                .properties(height=360)
-            )
 
             with c2:
-                card_open("Distribuição por Gênero", "👥")
-                st.altair_chart(gender_bar, use_container_width=True)
-                card_close()
-        else:
-            with c2:
-                card_open("Distribuição por Gênero", "👥")
-                st.info("Dados insuficientes para montar o gráfico (Gender/Obesity).")
-                card_close()
-
-        st.write("")
-        section("Hábitos e Histórico", "🌿")
-        c3, c4 = st.columns(2, gap="large")
-
-        # Family history
-        if all(col in df_data.columns for col in ["family_history_PT", "Obesity_PT"]) and df_data[["family_history_PT", "Obesity_PT"]].dropna().shape[0] > 0:
-            fdf = (
-                df_data.groupby(["family_history_PT", "Obesity_PT"])
-                .size()
-                .reset_index(name="Frequência")
-            )
-
-            fam_bar = (
-                alt.Chart(fdf)
-                .mark_bar()
-                .encode(
-                    x=alt.X("family_history_PT:N", title="Histórico familiar"),
-                    y=alt.Y("Frequência:Q", title="Frequência"),
-                    color=alt.Color("Obesity_PT:N", title="Nível"),
-                    tooltip=["family_history_PT:N", "Obesity_PT:N", "Frequência:Q"]
-                )
-                .properties(height=360)
-            )
-
-            with c3:
-                card_open("Impacto do Histórico Familiar", "🧬")
-                st.altair_chart(fam_bar, use_container_width=True)
-                card_close()
-        else:
-            with c3:
-                card_open("Impacto do Histórico Familiar", "🧬")
-                st.info("Dados insuficientes para montar o gráfico (family_history/Obesity).")
+                card_open("02 — Distribuição (% do total)", "📈")
+                fig, ax = plt.subplots()
+                ax.bar(dist_df["Obesity"], dist_df["Percentual"])
+                ax.set_title("Distribuição do nível de obesidade (% do total)")
+                ax.set_xlabel("Obesity")
+                ax.set_ylabel("%")
+                ax.tick_params(axis="x", rotation=45)
+                st.pyplot(fig, clear_figure=True)
                 card_close()
 
-        # Physical activity FAF bins
-        if "FAF" in df_data.columns and "Obesity_PT" in df_data.columns and df_data[["FAF", "Obesity_PT"]].dropna().shape[0] > 0:
-            tmp = df_data[["FAF", "Obesity_PT"]].dropna().copy()
-            tmp["Atividade_Física"] = pd.cut(
-                tmp["FAF"],
-                bins=[-0.1, 1.0, 2.0, 3.1],
-                labels=["Baixa (0–1)", "Média (1–2)", "Alta (2–3)"]
-            )
-            fafdf = tmp.groupby(["Atividade_Física", "Obesity_PT"]).size().reset_index(name="Frequência")
+            # =========================
+            # 05 — Scatter Peso x Altura por nível
+            # =========================
+            section("05 — Dispersão Peso × Altura por nível", "🔎")
 
-            faf_bar = (
-                alt.Chart(fafdf)
-                .mark_bar()
-                .encode(
-                    x=alt.X("Atividade_Física:N", title="Atividade física (FAF)"),
-                    y=alt.Y("Frequência:Q", title="Frequência"),
-                    color=alt.Color("Obesity_PT:N", title="Nível"),
-                    tooltip=["Atividade_Física:N", "Obesity_PT:N", "Frequência:Q"]
-                )
-                .properties(height=360)
-            )
-
-            with c4:
-                card_open("Atividade Física x Obesidade", "🏃")
-                st.altair_chart(faf_bar, use_container_width=True)
+            if all(c in df_data.columns for c in ["Height", "Weight", "Obesity"]):
+                card_open("05 — Height (X) x Weight (Y) por Obesity", "🧭")
+                fig, ax = plt.subplots()
+                for cls, g in df_data.dropna(subset=["Height", "Weight", "Obesity"]).groupby("Obesity"):
+                    ax.scatter(g["Height"], g["Weight"], label=str(cls), alpha=0.6)
+                ax.set_title("Dispersão: Peso × Altura por nível de obesidade")
+                ax.set_xlabel("Height (m)")
+                ax.set_ylabel("Weight (kg)")
+                ax.legend(title="Obesity", bbox_to_anchor=(1.02, 1), loc="upper left")
+                st.pyplot(fig, clear_figure=True)
                 card_close()
-        else:
-            with c4:
-                card_open("Atividade Física x Obesidade", "🏃")
-                st.info("Dados insuficientes para montar o gráfico (FAF/Obesity).")
-                card_close()
+            else:
+                st.info("Não foi possível montar o gráfico 05 (precisa de Height, Weight e Obesity).")
 
+            # =========================
+            # 07 — Gender x Obesity (100% empilhado)
+            # =========================
+            section("07 — Gender × Obesity (100% empilhado)", "👥")
+
+            if all(c in df_data.columns for c in ["Gender", "Obesity"]):
+                ct = pd.crosstab(df_data["Gender"], df_data["Obesity"], normalize="index") * 100
+                ct = ct.fillna(0)
+
+                card_open("07 — Composição por gênero (100%)", "📚")
+                fig, ax = plt.subplots()
+                bottom = np.zeros(len(ct))
+                x = np.arange(len(ct.index))
+
+                for col in ct.columns:
+                    vals = ct[col].values
+                    ax.bar(x, vals, bottom=bottom, label=str(col))
+                    bottom += vals
+
+                ax.set_title("Gender × Obesity (100% empilhado)")
+                ax.set_xlabel("Gender")
+                ax.set_ylabel("% dentro de cada gênero")
+                ax.set_xticks(x)
+                ax.set_xticklabels([str(v) for v in ct.index], rotation=0)
+                ax.legend(title="Obesity", bbox_to_anchor=(1.02, 1), loc="upper left")
+                st.pyplot(fig, clear_figure=True)
+                card_close()
+            else:
+                st.info("Não foi possível montar o gráfico 07 (precisa de Gender e Obesity).")
+
+            # =========================
+            # 08 — Heatmap faixa etária x Obesity (contagem)
+            # =========================
+            section("08 — Heatmap de faixa etária × Obesity (contagem)", "🧊")
+
+            if all(c in df_data.columns for c in ["Age", "Obesity"]):
+                # bins conforme seu requisito
+                bins = [0, 18, 25, 30, 35, 40, 50, 100]
+                labels = ["0–17", "18–24", "25–29", "30–34", "35–39", "40–49", "50–99"]
+                faixa = pd.cut(df_data["Age"], bins=bins, labels=labels, right=False)
+                heat = pd.crosstab(df_data["Obesity"], faixa)
+
+                card_open("08 — Contagem por Obesity x Faixa Etária", "🔥")
+                fig, ax = plt.subplots()
+                im = ax.imshow(heat.values, aspect="auto")
+                ax.set_title("Heatmap: faixa etária × Obesity (contagem)")
+                ax.set_xlabel("Faixa etária")
+                ax.set_ylabel("Obesity")
+
+                ax.set_xticks(np.arange(len(heat.columns)))
+                ax.set_xticklabels([str(c) for c in heat.columns], rotation=45, ha="right")
+                ax.set_yticks(np.arange(len(heat.index)))
+                ax.set_yticklabels([str(i) for i in heat.index])
+
+                fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+                st.pyplot(fig, clear_figure=True)
+                card_close()
+            else:
+                st.info("Não foi possível montar o gráfico 08 (precisa de Age e Obesity).")
+
+            # =========================
+            # 14 — Heatmap correlação numéricas
+            # =========================
+            section("14 — Heatmap de correlação (numéricas)", "🧮")
+
+            numeric_cols = ["Age", "Height", "Weight", "FCVC", "NCP", "CH2O", "FAF", "TUE", "BMI"]
+            available = [c for c in numeric_cols if c in df_data.columns]
+
+            if len(available) >= 2:
+                corr = df_data[available].corr()
+
+                card_open("14 — Correlação de Pearson", "🧾")
+                fig, ax = plt.subplots()
+                im = ax.imshow(corr.values, aspect="auto")
+                ax.set_title("Heatmap de correlação (Pearson)")
+
+                ax.set_xticks(np.arange(len(available)))
+                ax.set_xticklabels(available, rotation=45, ha="right")
+                ax.set_yticks(np.arange(len(available)))
+                ax.set_yticklabels(available)
+
+                fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+                st.pyplot(fig, clear_figure=True)
+                card_close()
+            else:
+                st.info("Não foi possível montar o gráfico 14 (faltam colunas numéricas suficientes).")
+
+            # =========================
+            # 16 — Radar perfil médio normalizado por Obesity
+            # =========================
+            section("16 — Radar: perfil médio normalizado por nível", "🕸️")
+
+            radar_vars = ["FCVC", "NCP", "CH2O", "FAF", "TUE"]
+            if all(c in df_data.columns for c in ["Obesity", *radar_vars]):
+                means = df_data.groupby("Obesity")[radar_vars].mean(numeric_only=True)
+
+                # min-max por variável (sobre as médias por classe)
+                mins = means.min(axis=0)
+                maxs = means.max(axis=0)
+                denom = (maxs - mins).replace(0, np.nan)
+                means_norm = (means - mins) / denom
+                means_norm = means_norm.fillna(0)
+
+                categories = radar_vars
+                angles = np.linspace(0, 2 * np.pi, len(categories), endpoint=False).tolist()
+                angles += angles[:1]  # fecha o radar
+
+                card_open("16 — Perfil médio normalizado (0–1)", "📡")
+                fig = plt.figure()
+                ax = plt.subplot(111, polar=True)
+
+                for cls in means_norm.index:
+                    values = means_norm.loc[cls].tolist()
+                    values += values[:1]
+                    ax.plot(angles, values, label=str(cls))
+                    ax.fill(angles, values, alpha=0.08)
+
+                ax.set_title("Radar: perfil médio normalizado por Obesity")
+                ax.set_xticks(angles[:-1])
+                ax.set_xticklabels(categories)
+                ax.set_yticklabels([])
+
+                ax.legend(bbox_to_anchor=(1.25, 1.05), loc="upper left", title="Obesity")
+                st.pyplot(fig, clear_figure=True)
+                card_close()
+            else:
+                st.info("Não foi possível montar o gráfico 16 (precisa de Obesity e FCVC/NCP/CH2O/FAF/TUE).")
+
+        # (opcional) dataset
         st.write("")
         section("Dados (opcional)", "🗂️")
-
         with st.expander("Ver amostra do dataset"):
             st.dataframe(df_data.head(30), use_container_width=True)
-
-        csv_bytes = df_data.to_csv(index=False).encode("utf-8")
-        st.download_button(
-            "⬇️ Baixar dataset (CSV)",
-            data=csv_bytes,
-            file_name="obesity_dataset.csv",
-            mime="text/csv",
-            use_container_width=True
-        )
 
 # =========================
 # TAB: Sobre
@@ -709,10 +603,9 @@ with tab_sobre:
     with colA:
         card_open("Visão geral", "📘")
         st.write(
-            "Este projeto reúne duas frentes em uma única aplicação: "
-            "**predição do nível de obesidade** por meio de um pipeline de Machine Learning e "
-            "uma área de **análise exploratória** para observar padrões do dataset (idade, IMC, hábitos e histórico). "
-            "A proposta é entregar uma ferramenta clara, objetiva e fácil de navegar para fins acadêmicos."
+            "Este projeto integra um **modelo preditivo** para estimar o nível de obesidade e uma área de "
+            "**visualização analítica**, com gráficos que ajudam a entender a distribuição das classes e relações "
+            "entre variáveis do dataset. O foco é oferecer uma experiência objetiva e amigável para fins acadêmicos."
         )
         card_close()
 
@@ -731,7 +624,7 @@ with tab_sobre:
         st.markdown(
             """
             - **Entrada do modelo:** 16 variáveis (mantidas em **inglês** no pipeline)  
-            - **Saída:** 7 classes de obesidade  
+            - **Saída:** classes de obesidade  
             - **Modelo (pipeline):** `model/obesity_pipeline.joblib`  
             - **Base de dados:** `Obesity.csv`  
             """
