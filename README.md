@@ -10,8 +10,8 @@ Modelo (pipeline): model/obesity_pipeline.joblib
 Base de dados: Obesity.csv
 
 👤 Autores
-Franco Colmán
-Hugo Duran
+- Franco Colmán
+- Hugo Duran
 
 LINK - STREAMLIT: https://techchallenge4postechdataanalyticsfiap-jcwkcts8n92sjk8vkqt8ds.streamlit.app/
 
