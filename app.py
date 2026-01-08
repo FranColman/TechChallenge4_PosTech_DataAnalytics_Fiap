@@ -458,7 +458,7 @@ with tab_insights:
             # =========================
             # 01 + 02 — Distribuição (contagem e %)
             # =========================
-            section("01 + 02 — Distribuição do nível de obesidade", "📊")
+            section("Distribuição do nível de obesidade", "📊")
 
             vc_count = df_data["Obesity"].value_counts(dropna=False)
             vc_pct = df_data["Obesity"].value_counts(normalize=True, dropna=False) * 100
