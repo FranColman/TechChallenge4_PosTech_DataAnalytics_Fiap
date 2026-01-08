@@ -168,24 +168,102 @@ model = load_model()
 # Load data for Insights
 # =========================
 @st.cache_data
+@st.cache_data
 def load_data() -> pd.DataFrame:
     if not DATA_PATH.exists():
         return pd.DataFrame()
 
     df = pd.read_csv(DATA_PATH)
 
-    # BMI
+    # -------------------------
+    # Normaliza nomes de coluna
+    # -------------------------
+    df.columns = [str(c).strip() for c in df.columns]
+    lower_map = {c.lower(): c for c in df.columns}
+
+    def pick_col(candidates: list[str]) -> str | None:
+        """Retorna o nome REAL da coluna no df, tentando várias opções."""
+        for cand in candidates:
+            if cand in df.columns:
+                return cand
+            lc = cand.lower()
+            if lc in lower_map:
+                return lower_map[lc]
+        return None
+
+    # -------------------------
+    # Detecta colunas principais
+    # -------------------------
+    col_gender = pick_col(["Gender", "Sex"])
+    col_age = pick_col(["Age", "IDADE", "Idade"])
+    col_height = pick_col(["Height", "ALTURA", "Altura"])
+    col_weight = pick_col(["Weight", "PESO", "Peso"])
+
+    # Colunas com nomes diferentes (muito comuns no dataset original)
+    col_family = pick_col(["family_history", "family_history_with_overweight", "Family_history_with_overweight"])
+    col_faf = pick_col(["FAF", "Physical_Activity_Frequency", "PhysicalActivityFrequency", "Atividade_Fisica"])
+
+    # Alvo (varia MUITO de projeto pra projeto)
+    col_target = pick_col([
+        "NObeyesdad", "NObesitydad", "NObesity", "Obesity", "ObesityLevel", "Obesity_Category", "target"
+    ])
+
+    # -------------------------
+    # Cria colunas "canônicas" (sem quebrar o pipeline)
+    # -------------------------
+    # (Essas canônicas são só para insights. O pipeline continua recebendo EN na predição.)
+    if col_gender and "Gender" not in df.columns:
+        df["Gender"] = df[col_gender]
+
+    if col_age and "Age" not in df.columns:
+        df["Age"] = df[col_age]
+
+    if col_height and "Height" not in df.columns:
+        df["Height"] = df[col_height]
+
+    if col_weight and "Weight" not in df.columns:
+        df["Weight"] = df[col_weight]
+
+    if col_family and "family_history" not in df.columns:
+        df["family_history"] = df[col_family]
+
+    if col_faf and "FAF" not in df.columns:
+        df["FAF"] = df[col_faf]
+
+    # -------------------------
+    # BMI / Faixa Etária
+    # -------------------------
     if "Height" in df.columns and "Weight" in df.columns:
         df["BMI"] = df["Weight"] / (df["Height"] ** 2)
 
-    # Friendly labels
+    if "Age" in df.columns:
+        bins = [0, 20, 30, 40, 50, 200]
+        labels = ["<20", "20–29", "30–39", "40–49", "50+"]
+        df["Faixa_Etaria"] = pd.cut(df["Age"], bins=bins, labels=labels, right=False)
+
+    # -------------------------
+    # Labels PT (Gênero / Histórico)
+    # -------------------------
     if "Gender" in df.columns:
-        df["Gender_PT"] = df["Gender"].map({"Male": "Masculino", "Female": "Feminino"}).fillna(df["Gender"].astype(str))
+        df["Gender_PT"] = (
+            df["Gender"].astype(str)
+            .map({"Male": "Masculino", "Female": "Feminino", "M": "Masculino", "F": "Feminino"})
+            .fillna(df["Gender"].astype(str))
+        )
 
     if "family_history" in df.columns:
-        df["family_history_PT"] = df["family_history"].map({"yes": "Sim", "no": "Não"}).fillna(df["family_history"].astype(str))
+        df["family_history_PT"] = (
+            df["family_history"].astype(str)
+            .map({"yes": "Sim", "no": "Não", "Yes": "Sim", "No": "Não", "1": "Sim", "0": "Não"})
+            .fillna(df["family_history"].astype(str))
+        )
 
-    if "NObeyesdad" in df.columns:
+    # -------------------------
+    # Alvo -> Obesity_PT
+    # -------------------------
+    if col_target:
+        df["_target_raw"] = df[col_target].astype(str)
+
         map_ob = {
             "Insufficient_Weight": "Peso Insuficiente",
             "Normal_Weight": "Peso Normal",
@@ -195,12 +273,12 @@ def load_data() -> pd.DataFrame:
             "Obesity_Type_II": "Obesidade Tipo II",
             "Obesity_Type_III": "Obesidade Tipo III",
         }
-        df["Obesity_PT"] = df["NObeyesdad"].map(map_ob).fillna(df["NObeyesdad"].astype(str))
 
-    if "Age" in df.columns:
-        bins = [0, 20, 30, 40, 50, 200]
-        labels = ["<20", "20–29", "30–39", "40–49", "50+"]
-        df["Faixa_Etaria"] = pd.cut(df["Age"], bins=bins, labels=labels, right=False)
+        # Caso o dataset já venha “bonitinho” (ex: "Obesidade Tipo I"), ele mantém
+        df["Obesity_PT"] = df["_target_raw"].map(map_ob).fillna(df["_target_raw"])
+    else:
+        # Ajuda você a ver rapidamente o que veio no CSV
+        df["Obesity_PT"] = None
 
     return df
 
