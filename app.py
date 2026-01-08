@@ -100,6 +100,56 @@ div[data-testid="stDataFrame"]{
 st.markdown(DARK_CSS, unsafe_allow_html=True)
 
 # =========================
+# Matplotlib Theme (MELHORIA VISUAL + TAMANHO PADRÃO)
+# =========================
+# Cores alinhadas com o seu CSS
+BG = "#0b1220"
+AX_BG = "#0f172a"       # um pouco mais claro que o fundo
+TEXT = "#e6eefc"
+MUTED = "#a7b6d7"
+GRID = (1, 1, 1, 0.08)  # rgba
+BRAND = "#18a0fb"
+
+PLOT_SIZE = (7.6, 4.4)  # tamanho padrão para todos (fica bom em colunas e full-width)
+
+plt.rcParams.update({
+    "figure.figsize": PLOT_SIZE,
+    "figure.facecolor": BG,
+    "axes.facecolor": AX_BG,
+    "axes.edgecolor": (1, 1, 1, 0.10),
+    "axes.labelcolor": TEXT,
+    "xtick.color": MUTED,
+    "ytick.color": MUTED,
+    "text.color": TEXT,
+    "axes.titlecolor": TEXT,
+    "font.size": 11,
+    "axes.titlesize": 14,
+    "axes.titleweight": "bold",
+    "axes.labelsize": 11,
+    "legend.fontsize": 9,
+    "legend.frameon": True,
+    "legend.framealpha": 0.15,
+    "legend.facecolor": AX_BG,
+    "legend.edgecolor": (1, 1, 1, 0.10),
+    "axes.grid": True,
+    "grid.color": GRID,
+    "grid.alpha": 1.0,
+    "grid.linewidth": 0.8,
+})
+
+def _style_ax(ax):
+    """Aplica pequenos ajustes de estética em cada eixo."""
+    for spine in ax.spines.values():
+        spine.set_alpha(0.18)
+    ax.grid(True, axis="y")
+    ax.set_axisbelow(True)
+    return ax
+
+def _pretty_cat(s: str) -> str:
+    """Deixa rótulos mais amigáveis (ex: Normal_Weight -> Normal Weight)."""
+    return str(s).replace("_", " ")
+
+# =========================
 # Helpers
 # =========================
 def section(title: str, icon: str = "🧩"):
@@ -165,7 +215,6 @@ def load_data() -> pd.DataFrame:
     if target_col is not None and target_col != "Obesity":
         df["Obesity"] = df[target_col]
     elif target_col == "Obesity":
-        # já está ok
         pass
 
     # BMI
@@ -178,6 +227,10 @@ def load_data() -> pd.DataFrame:
 
     if "family_history" in df.columns:
         df["family_history_PT"] = df["family_history"].map({"yes": "Sim", "no": "Não"}).fillna(df["family_history"].astype(str))
+
+    # Rótulo “bonitinho” para a classe (visual)
+    if "Obesity" in df.columns:
+        df["Obesity_PT"] = df["Obesity"].astype(str).map(_pretty_cat)
 
     # Faixas etárias (bins do seu requisito)
     if "Age" in df.columns:
@@ -395,7 +448,6 @@ with tab_insights:
             "Coloque o CSV ao lado do `app.py` (ou ajuste `DATA_PATH`)."
         )
     else:
-        # validações mínimas
         required_target = "Obesity" in df_data.columns
         if not required_target:
             st.error(
@@ -413,6 +465,7 @@ with tab_insights:
 
             dist_df = pd.DataFrame({
                 "Obesity": vc_count.index.astype(str),
+                "Obesity_PT": vc_count.index.astype(str).map(_pretty_cat),
                 "Contagem": vc_count.values,
                 "Percentual": vc_pct.reindex(vc_count.index).values
             })
@@ -420,23 +473,25 @@ with tab_insights:
             c1, c2 = st.columns(2, gap="large")
             with c1:
                 card_open("01 — Distribuição (contagem)", "📊")
-                fig, ax = plt.subplots()
-                ax.bar(dist_df["Obesity"], dist_df["Contagem"])
+                fig, ax = plt.subplots(figsize=PLOT_SIZE)
+                ax = _style_ax(ax)
+                ax.bar(dist_df["Obesity_PT"], dist_df["Contagem"], color=BRAND, alpha=0.85)
                 ax.set_title("Distribuição do nível de obesidade (contagem)")
-                ax.set_xlabel("Obesity")
+                ax.set_xlabel("Nível de obesidade")
                 ax.set_ylabel("Contagem")
-                ax.tick_params(axis="x", rotation=45)
+                ax.tick_params(axis="x", rotation=30)
                 st.pyplot(fig, clear_figure=True)
                 card_close()
 
             with c2:
                 card_open("02 — Distribuição (% do total)", "📈")
-                fig, ax = plt.subplots()
-                ax.bar(dist_df["Obesity"], dist_df["Percentual"])
+                fig, ax = plt.subplots(figsize=PLOT_SIZE)
+                ax = _style_ax(ax)
+                ax.bar(dist_df["Obesity_PT"], dist_df["Percentual"], color=BRAND, alpha=0.85)
                 ax.set_title("Distribuição do nível de obesidade (% do total)")
-                ax.set_xlabel("Obesity")
-                ax.set_ylabel("%")
-                ax.tick_params(axis="x", rotation=45)
+                ax.set_xlabel("Nível de obesidade")
+                ax.set_ylabel("Percentual (%)")
+                ax.tick_params(axis="x", rotation=30)
                 st.pyplot(fig, clear_figure=True)
                 card_close()
 
@@ -446,14 +501,22 @@ with tab_insights:
             section("05 — Dispersão Peso × Altura por nível", "🔎")
 
             if all(c in df_data.columns for c in ["Height", "Weight", "Obesity"]):
-                card_open("05 — Height (X) x Weight (Y) por Obesity", "🧭")
-                fig, ax = plt.subplots()
+                card_open("05 — Altura (X) × Peso (Y) por nível", "🧭")
+                fig, ax = plt.subplots(figsize=PLOT_SIZE)
+                ax = _style_ax(ax)
+
                 for cls, g in df_data.dropna(subset=["Height", "Weight", "Obesity"]).groupby("Obesity"):
-                    ax.scatter(g["Height"], g["Weight"], label=str(cls), alpha=0.6)
+                    ax.scatter(
+                        g["Height"], g["Weight"],
+                        label=_pretty_cat(str(cls)),
+                        alpha=0.55,
+                        s=18
+                    )
+
                 ax.set_title("Dispersão: Peso × Altura por nível de obesidade")
-                ax.set_xlabel("Height (m)")
-                ax.set_ylabel("Weight (kg)")
-                ax.legend(title="Obesity", bbox_to_anchor=(1.02, 1), loc="upper left")
+                ax.set_xlabel("Altura (m)")
+                ax.set_ylabel("Peso (kg)")
+                ax.legend(title="Nível", bbox_to_anchor=(1.02, 1), loc="upper left")
                 st.pyplot(fig, clear_figure=True)
                 card_close()
             else:
@@ -462,28 +525,34 @@ with tab_insights:
             # =========================
             # 07 — Gender x Obesity (100% empilhado)
             # =========================
-            section("07 — Gender × Obesity (100% empilhado)", "👥")
+            section("07 — Gênero × Nível (100% empilhado)", "👥")
 
             if all(c in df_data.columns for c in ["Gender", "Obesity"]):
-                ct = pd.crosstab(df_data["Gender"], df_data["Obesity"], normalize="index") * 100
+                gender_col = "Gender_PT" if "Gender_PT" in df_data.columns else "Gender"
+                ct = pd.crosstab(df_data[gender_col], df_data["Obesity"], normalize="index") * 100
                 ct = ct.fillna(0)
 
+                # rótulos bonitos para colunas (classes)
+                ct = ct.rename(columns={c: _pretty_cat(str(c)) for c in ct.columns})
+
                 card_open("07 — Composição por gênero (100%)", "📚")
-                fig, ax = plt.subplots()
+                fig, ax = plt.subplots(figsize=PLOT_SIZE)
+                ax = _style_ax(ax)
+
                 bottom = np.zeros(len(ct))
                 x = np.arange(len(ct.index))
 
                 for col in ct.columns:
                     vals = ct[col].values
-                    ax.bar(x, vals, bottom=bottom, label=str(col))
+                    ax.bar(x, vals, bottom=bottom, label=str(col), alpha=0.9)
                     bottom += vals
 
-                ax.set_title("Gender × Obesity (100% empilhado)")
-                ax.set_xlabel("Gender")
+                ax.set_title("Distribuição do nível de obesidade por gênero (100% empilhado)")
+                ax.set_xlabel("Gênero")
                 ax.set_ylabel("% dentro de cada gênero")
                 ax.set_xticks(x)
                 ax.set_xticklabels([str(v) for v in ct.index], rotation=0)
-                ax.legend(title="Obesity", bbox_to_anchor=(1.02, 1), loc="upper left")
+                ax.legend(title="Nível", bbox_to_anchor=(1.02, 1), loc="upper left")
                 st.pyplot(fig, clear_figure=True)
                 card_close()
             else:
@@ -492,28 +561,33 @@ with tab_insights:
             # =========================
             # 08 — Heatmap faixa etária x Obesity (contagem)
             # =========================
-            section("08 — Heatmap de faixa etária × Obesity (contagem)", "🧊")
+            section("08 — Heatmap: faixa etária × nível (contagem)", "🧊")
 
             if all(c in df_data.columns for c in ["Age", "Obesity"]):
-                # bins conforme seu requisito
                 bins = [0, 18, 25, 30, 35, 40, 50, 100]
                 labels = ["0–17", "18–24", "25–29", "30–34", "35–39", "40–49", "50–99"]
                 faixa = pd.cut(df_data["Age"], bins=bins, labels=labels, right=False)
                 heat = pd.crosstab(df_data["Obesity"], faixa)
 
-                card_open("08 — Contagem por Obesity x Faixa Etária", "🔥")
-                fig, ax = plt.subplots()
-                im = ax.imshow(heat.values, aspect="auto")
-                ax.set_title("Heatmap: faixa etária × Obesity (contagem)")
+                card_open("08 — Contagem por nível × faixa etária", "🔥")
+                fig, ax = plt.subplots(figsize=PLOT_SIZE)
+                ax.set_facecolor(AX_BG)
+
+                im = ax.imshow(heat.values, aspect="auto", cmap="viridis")
+                ax.set_title("Heatmap: faixa etária × nível de obesidade (contagem)")
                 ax.set_xlabel("Faixa etária")
-                ax.set_ylabel("Obesity")
+                ax.set_ylabel("Nível de obesidade")
 
                 ax.set_xticks(np.arange(len(heat.columns)))
-                ax.set_xticklabels([str(c) for c in heat.columns], rotation=45, ha="right")
+                ax.set_xticklabels([str(c) for c in heat.columns], rotation=30, ha="right", color=MUTED)
                 ax.set_yticks(np.arange(len(heat.index)))
-                ax.set_yticklabels([str(i) for i in heat.index])
+                ax.set_yticklabels([_pretty_cat(str(i)) for i in heat.index], color=MUTED)
 
-                fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+                cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+                cbar.set_label("Contagem", color=TEXT)
+                cbar.ax.yaxis.set_tick_params(color=MUTED)
+                plt.setp(plt.getp(cbar.ax.axes, "yticklabels"), color=MUTED)
+
                 st.pyplot(fig, clear_figure=True)
                 card_close()
             else:
@@ -530,17 +604,42 @@ with tab_insights:
             if len(available) >= 2:
                 corr = df_data[available].corr()
 
+                # rótulos PT para ficar mais “dashboard”
+                label_map = {
+                    "Age": "Idade",
+                    "Height": "Altura",
+                    "Weight": "Peso",
+                    "FCVC": "Vegetais (FCVC)",
+                    "NCP": "Refeições (NCP)",
+                    "CH2O": "Água (CH2O)",
+                    "FAF": "Atividade (FAF)",
+                    "TUE": "Tempo de tela (TUE)",
+                    "BMI": "IMC",
+                }
+                tick_labels = [label_map.get(c, c) for c in available]
+
                 card_open("14 — Correlação de Pearson", "🧾")
-                fig, ax = plt.subplots()
-                im = ax.imshow(corr.values, aspect="auto")
+                fig, ax = plt.subplots(figsize=PLOT_SIZE)
+                ax.set_facecolor(AX_BG)
+
+                im = ax.imshow(corr.values, aspect="auto", cmap="viridis", vmin=-1, vmax=1)
                 ax.set_title("Heatmap de correlação (Pearson)")
 
                 ax.set_xticks(np.arange(len(available)))
-                ax.set_xticklabels(available, rotation=45, ha="right")
+                ax.set_xticklabels(tick_labels, rotation=30, ha="right")
                 ax.set_yticks(np.arange(len(available)))
-                ax.set_yticklabels(available)
+                ax.set_yticklabels(tick_labels)
 
-                fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+                # valores no heatmap (melhora leitura)
+                for i in range(corr.shape[0]):
+                    for j in range(corr.shape[1]):
+                        ax.text(j, i, f"{corr.values[i, j]:.2f}", ha="center", va="center", fontsize=8, color="white")
+
+                cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+                cbar.set_label("Correlação", color=TEXT)
+                cbar.ax.yaxis.set_tick_params(color=MUTED)
+                plt.setp(plt.getp(cbar.ax.axes, "yticklabels"), color=MUTED)
+
                 st.pyplot(fig, clear_figure=True)
                 card_close()
             else:
@@ -562,32 +661,33 @@ with tab_insights:
                 means_norm = (means - mins) / denom
                 means_norm = means_norm.fillna(0)
 
-                categories = radar_vars
+                categories = ["Vegetais", "Refeições", "Água", "Atividade", "Tempo de tela"]
                 angles = np.linspace(0, 2 * np.pi, len(categories), endpoint=False).tolist()
-                angles += angles[:1]  # fecha o radar
+                angles += angles[:1]
 
                 card_open("16 — Perfil médio normalizado (0–1)", "📡")
-                fig = plt.figure()
+                fig = plt.figure(figsize=PLOT_SIZE)
+                fig.patch.set_facecolor(BG)
                 ax = plt.subplot(111, polar=True)
+                ax.set_facecolor(AX_BG)
 
                 for cls in means_norm.index:
                     values = means_norm.loc[cls].tolist()
                     values += values[:1]
-                    ax.plot(angles, values, label=str(cls))
+                    ax.plot(angles, values, linewidth=2, label=_pretty_cat(str(cls)))
                     ax.fill(angles, values, alpha=0.08)
 
-                ax.set_title("Radar: perfil médio normalizado por Obesity")
+                ax.set_title("Radar: perfil médio normalizado por nível de obesidade", pad=18)
                 ax.set_xticks(angles[:-1])
-                ax.set_xticklabels(categories)
+                ax.set_xticklabels(categories, color=TEXT)
                 ax.set_yticklabels([])
 
-                ax.legend(bbox_to_anchor=(1.25, 1.05), loc="upper left", title="Obesity")
+                ax.legend(bbox_to_anchor=(1.25, 1.05), loc="upper left", title="Nível")
                 st.pyplot(fig, clear_figure=True)
                 card_close()
             else:
                 st.info("Não foi possível montar o gráfico 16 (precisa de Obesity e FCVC/NCP/CH2O/FAF/TUE).")
 
-        # (opcional) dataset
         st.write("")
         section("Dados (opcional)", "🗂️")
         with st.expander("Ver amostra do dataset"):
