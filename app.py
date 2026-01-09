@@ -21,6 +21,26 @@ MODEL_PATH = BASE_DIR / "models" / "model_pipeline.joblib"
 DATA_PATH = BASE_DIR / "Obesity.csv"
 
 # =========================
+# Mapeamento EN -> PT (resultado e classes)
+# =========================
+OBESITY_MAP_PT = {
+    "Insufficient_Weight": "Peso insuficiente",
+    "Normal_Weight": "Peso normal",
+    "Overweight_Level_I": "Sobrepeso nível I",
+    "Overweight_Level_II": "Sobrepeso nível II",
+    "Obesity_Type_I": "Obesidade tipo I",
+    "Obesity_Type_II": "Obesidade tipo II",
+    "Obesity_Type_III": "Obesidade tipo III",
+}
+
+def format_pct_ptbr(x: float) -> str:
+    """Formata percentual no padrão pt-BR (ex: 23,45%)."""
+    try:
+        return f"{x:,.2f}%".replace(",", "X").replace(".", ",").replace("X", ".")
+    except Exception:
+        return "—"
+
+# =========================
 # Dark Theme CSS
 # =========================
 DARK_CSS = """
@@ -102,15 +122,14 @@ st.markdown(DARK_CSS, unsafe_allow_html=True)
 # =========================
 # Matplotlib Theme (MELHORIA VISUAL + TAMANHO PADRÃO)
 # =========================
-# Cores alinhadas com o seu CSS
 BG = "#0b1220"
-AX_BG = "#0f172a"       # um pouco mais claro que o fundo
+AX_BG = "#0f172a"
 TEXT = "#e6eefc"
 MUTED = "#a7b6d7"
-GRID = (1, 1, 1, 0.08)  # rgba
+GRID = (1, 1, 1, 0.08)
 BRAND = "#18a0fb"
 
-PLOT_SIZE = (7.6, 4.4)  # tamanho padrão para todos (fica bom em colunas e full-width)
+PLOT_SIZE = (7.6, 4.4)
 
 plt.rcParams.update({
     "figure.figsize": PLOT_SIZE,
@@ -138,7 +157,6 @@ plt.rcParams.update({
 })
 
 def _style_ax(ax):
-    """Aplica pequenos ajustes de estética em cada eixo."""
     for spine in ax.spines.values():
         spine.set_alpha(0.18)
     ax.grid(True, axis="y")
@@ -146,7 +164,6 @@ def _style_ax(ax):
     return ax
 
 def _pretty_cat(s: str) -> str:
-    """Deixa rótulos mais amigáveis (ex: Normal_Weight -> Normal Weight)."""
     return str(s).replace("_", " ")
 
 # =========================
@@ -188,15 +205,10 @@ model = load_model()
 # Load data for Insights
 # =========================
 def _resolve_target_col(df: pd.DataFrame) -> Optional[str]:
-    """
-    Padroniza a coluna alvo para os gráficos.
-    Preferência: Obesity > Obesity_level > NObeyesdad > NObeyesdad (variações)
-    """
     candidates = ["Obesity", "Obesity_level", "NObeyesdad", "NObeyesdad ", "NObeyesdad\r"]
     for c in candidates:
         if c in df.columns:
             return c
-    # fallback por aproximação
     for c in df.columns:
         cl = c.strip().lower()
         if cl in ("obesity", "obesity_level", "nobeyesdad"):
@@ -210,29 +222,23 @@ def load_data() -> pd.DataFrame:
 
     df = pd.read_csv(DATA_PATH)
 
-    # Padroniza coluna alvo em "Obesity" (para visualização e cálculos)
     target_col = _resolve_target_col(df)
     if target_col is not None and target_col != "Obesity":
         df["Obesity"] = df[target_col]
-    elif target_col == "Obesity":
-        pass
 
-    # BMI
     if "Height" in df.columns and "Weight" in df.columns:
         df["BMI"] = df["Weight"] / (df["Height"] ** 2)
 
-    # Traduções (apenas visualização)
     if "Gender" in df.columns:
         df["Gender_PT"] = df["Gender"].map({"Male": "Masculino", "Female": "Feminino"}).fillna(df["Gender"].astype(str))
 
     if "family_history" in df.columns:
         df["family_history_PT"] = df["family_history"].map({"yes": "Sim", "no": "Não"}).fillna(df["family_history"].astype(str))
 
-    # Rótulo “bonitinho” para a classe (visual)
     if "Obesity" in df.columns:
-        df["Obesity_PT"] = df["Obesity"].astype(str).map(_pretty_cat)
+        # para visualização: já tenta traduzir para PT se bater no dicionário, senão “pretty”
+        df["Obesity_PT"] = df["Obesity"].astype(str).map(lambda x: OBESITY_MAP_PT.get(x, _pretty_cat(x)))
 
-    # Faixas etárias (bins do seu requisito)
     if "Age" in df.columns:
         bins = [0, 18, 25, 30, 35, 40, 50, 100]
         labels = ["0–17", "18–24", "25–29", "30–34", "35–39", "40–49", "50–99"]
@@ -308,7 +314,6 @@ with tab_pred:
     st.write("")
     section("Dados do Paciente", "📋")
 
-    # Mapeamentos PT -> EN (visível em PT, enviado em EN)
     map_gender = {"Masculino": "Male", "Feminino": "Female"}
     map_yesno = {"Sim": "yes", "Não": "no"}
 
@@ -395,6 +400,9 @@ with tab_pred:
     with right:
         st.caption("Resultado gerado a partir do pipeline treinado. Use como apoio à decisão.")
 
+    # =========================
+    # ✅ AJUSTE SOLICITADO: Resultado em PT + Probabilidade em % (pt-BR)
+    # =========================
     if run_pred:
         input_data = pd.DataFrame([{
             "Gender": gender,
@@ -415,25 +423,54 @@ with tab_pred:
             "MTRANS": mtrans
         }])
 
-        pred = model.predict(input_data)[0]
+        pred_en = model.predict(input_data)[0]
+        pred_pt = OBESITY_MAP_PT.get(str(pred_en), _pretty_cat(str(pred_en)))
 
         card_open("Resultado", "✅", badge="Predição concluída")
-        st.markdown(f"### Nível previsto: **{pred}**")
-        st.write(f"**Paciente:** {paciente or '—'}  |  **Profissional:** {profissional or '—'}  |  **Registro:** {registro or '—'}")
+        st.markdown(f"### Nível previsto: **{pred_pt}**")
+        st.write(
+            f"**Paciente:** {paciente or '—'}  |  "
+            f"**Profissional:** {profissional or '—'}  |  "
+            f"**Registro:** {registro or '—'}"
+        )
         st.write(f"**IMC calculado:** `{imc:.2f}`")
         card_close()
 
         if hasattr(model, "predict_proba"):
             proba = model.predict_proba(input_data)[0]
-            classes = model.classes_
-            proba_df = (
-                pd.DataFrame({"Classe": classes, "Probabilidade": proba})
-                .sort_values("Probabilidade", ascending=False)
-                .reset_index(drop=True)
-            )
+            classes_en = list(model.classes_)
+
+            proba_df = pd.DataFrame({
+                "Classe": [OBESITY_MAP_PT.get(str(c), _pretty_cat(str(c))) for c in classes_en],
+                "Probabilidade": proba
+            }).sort_values("Probabilidade", ascending=False).reset_index(drop=True)
+
+            # coluna de % formatado
+            proba_df["Probabilidade (%)"] = (proba_df["Probabilidade"] * 100).map(format_pct_ptbr)
+
             st.write("")
             card_open("Probabilidades por classe", "📊", badge="Apoio à decisão")
-            st.dataframe(proba_df, use_container_width=True)
+
+            # tabela final (PT + %)
+            st.dataframe(
+                proba_df[["Classe", "Probabilidade (%)"]],
+                use_container_width=True
+            )
+
+            # opcional: barra visual de confiança (0..1)
+            st.caption("Confiança por classe (visual):")
+            st.dataframe(
+                proba_df[["Classe", "Probabilidade"]],
+                use_container_width=True,
+                column_config={
+                    "Probabilidade": st.column_config.ProgressColumn(
+                        "Confiança",
+                        min_value=0.0,
+                        max_value=1.0,
+                        format="%.0f%%"
+                    )
+                }
+            )
             card_close()
 
 # =========================
@@ -455,9 +492,6 @@ with tab_insights:
                 "Verifique se o CSV possui **Obesity** ou **Obesity_level**."
             )
         else:
-            # =========================
-            # 01 + 02 — Distribuição (contagem e %)
-            # =========================
             section("Distribuição do nível de obesidade", "📊")
 
             vc_count = df_data["Obesity"].value_counts(dropna=False)
@@ -465,7 +499,7 @@ with tab_insights:
 
             dist_df = pd.DataFrame({
                 "Obesity": vc_count.index.astype(str),
-                "Obesity_PT": vc_count.index.astype(str).map(_pretty_cat),
+                "Obesity_PT": vc_count.index.astype(str).map(lambda x: OBESITY_MAP_PT.get(x, _pretty_cat(x))),
                 "Contagem": vc_count.values,
                 "Percentual": vc_pct.reindex(vc_count.index).values
             })
@@ -495,9 +529,6 @@ with tab_insights:
                 st.pyplot(fig, clear_figure=True)
                 card_close()
 
-            # =========================
-            # 05 — Scatter Peso x Altura por nível
-            # =========================
             section("05 — Dispersão Peso × Altura por nível", "🔎")
 
             if all(c in df_data.columns for c in ["Height", "Weight", "Obesity"]):
@@ -508,7 +539,7 @@ with tab_insights:
                 for cls, g in df_data.dropna(subset=["Height", "Weight", "Obesity"]).groupby("Obesity"):
                     ax.scatter(
                         g["Height"], g["Weight"],
-                        label=_pretty_cat(str(cls)),
+                        label=OBESITY_MAP_PT.get(str(cls), _pretty_cat(str(cls))),
                         alpha=0.55,
                         s=18
                     )
@@ -522,18 +553,13 @@ with tab_insights:
             else:
                 st.info("Não foi possível montar o gráfico 05 (precisa de Height, Weight e Obesity).")
 
-            # =========================
-            # 07 — Gender x Obesity (100% empilhado)
-            # =========================
             section("07 — Gênero × Nível (100% empilhado)", "👥")
 
             if all(c in df_data.columns for c in ["Gender", "Obesity"]):
                 gender_col = "Gender_PT" if "Gender_PT" in df_data.columns else "Gender"
                 ct = pd.crosstab(df_data[gender_col], df_data["Obesity"], normalize="index") * 100
                 ct = ct.fillna(0)
-
-                # rótulos bonitos para colunas (classes)
-                ct = ct.rename(columns={c: _pretty_cat(str(c)) for c in ct.columns})
+                ct = ct.rename(columns={c: OBESITY_MAP_PT.get(str(c), _pretty_cat(str(c))) for c in ct.columns})
 
                 card_open("07 — Composição por gênero (100%)", "📚")
                 fig, ax = plt.subplots(figsize=PLOT_SIZE)
@@ -558,9 +584,6 @@ with tab_insights:
             else:
                 st.info("Não foi possível montar o gráfico 07 (precisa de Gender e Obesity).")
 
-            # =========================
-            # 08 — Heatmap faixa etária x Obesity (contagem)
-            # =========================
             section("08 — Heatmap: faixa etária × nível (contagem)", "🧊")
 
             if all(c in df_data.columns for c in ["Age", "Obesity"]):
@@ -581,7 +604,7 @@ with tab_insights:
                 ax.set_xticks(np.arange(len(heat.columns)))
                 ax.set_xticklabels([str(c) for c in heat.columns], rotation=30, ha="right", color=MUTED)
                 ax.set_yticks(np.arange(len(heat.index)))
-                ax.set_yticklabels([_pretty_cat(str(i)) for i in heat.index], color=MUTED)
+                ax.set_yticklabels([OBESITY_MAP_PT.get(str(i), _pretty_cat(str(i))) for i in heat.index], color=MUTED)
 
                 cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
                 cbar.set_label("Contagem", color=TEXT)
@@ -593,9 +616,6 @@ with tab_insights:
             else:
                 st.info("Não foi possível montar o gráfico 08 (precisa de Age e Obesity).")
 
-            # =========================
-            # 14 — Heatmap correlação numéricas
-            # =========================
             section("14 — Heatmap de correlação (numéricas)", "🧮")
 
             numeric_cols = ["Age", "Height", "Weight", "FCVC", "NCP", "CH2O", "FAF", "TUE", "BMI"]
@@ -604,7 +624,6 @@ with tab_insights:
             if len(available) >= 2:
                 corr = df_data[available].corr()
 
-                # rótulos PT para ficar mais “dashboard”
                 label_map = {
                     "Age": "Idade",
                     "Height": "Altura",
@@ -630,7 +649,6 @@ with tab_insights:
                 ax.set_yticks(np.arange(len(available)))
                 ax.set_yticklabels(tick_labels)
 
-                # valores no heatmap (melhora leitura)
                 for i in range(corr.shape[0]):
                     for j in range(corr.shape[1]):
                         ax.text(j, i, f"{corr.values[i, j]:.2f}", ha="center", va="center", fontsize=8, color="white")
@@ -645,16 +663,12 @@ with tab_insights:
             else:
                 st.info("Não foi possível montar o gráfico 14 (faltam colunas numéricas suficientes).")
 
-            # =========================
-            # 16 — Radar perfil médio normalizado por Obesity
-            # =========================
             section("16 — Radar: perfil médio normalizado por nível", "🕸️")
 
             radar_vars = ["FCVC", "NCP", "CH2O", "FAF", "TUE"]
             if all(c in df_data.columns for c in ["Obesity", *radar_vars]):
                 means = df_data.groupby("Obesity")[radar_vars].mean(numeric_only=True)
 
-                # min-max por variável (sobre as médias por classe)
                 mins = means.min(axis=0)
                 maxs = means.max(axis=0)
                 denom = (maxs - mins).replace(0, np.nan)
@@ -674,7 +688,7 @@ with tab_insights:
                 for cls in means_norm.index:
                     values = means_norm.loc[cls].tolist()
                     values += values[:1]
-                    ax.plot(angles, values, linewidth=2, label=_pretty_cat(str(cls)))
+                    ax.plot(angles, values, linewidth=2, label=OBESITY_MAP_PT.get(str(cls), _pretty_cat(str(cls))))
                     ax.fill(angles, values, alpha=0.08)
 
                 ax.set_title("Radar: perfil médio normalizado por nível de obesidade", pad=18)
@@ -722,11 +736,11 @@ with tab_sobre:
     with colB:
         card_open("Informações técnicas", "🗂️")
         st.markdown(
-            """
+            f"""
             - **Entrada do modelo:** 16 variáveis (mantidas em **inglês** no pipeline)  
             - **Saída:** classes de obesidade  
-            - **Modelo (pipeline):** `model/obesity_pipeline.joblib`  
-            - **Base de dados:** `Obesity.csv`  
+            - **Modelo (pipeline):** `{MODEL_PATH.as_posix()}`  
+            - **Base de dados:** `{DATA_PATH.name}`  
             """
         )
         card_close()
