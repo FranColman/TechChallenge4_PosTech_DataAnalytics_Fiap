@@ -1,5 +1,3 @@
-# TechChallenge4_PosTech_DataAnalytics_Fiap
-
 # 🏥 Sistema Preditivo e Analítico de Obesidade
 
 **Tech Challenge – Fase 4 | Pós-Graduação em Data Analytics**
