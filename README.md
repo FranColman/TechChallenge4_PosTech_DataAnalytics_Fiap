@@ -133,7 +133,7 @@ A solução demonstra como dados podem ser transformados em **insights acionáve
 
  ## 🔗 Links do Projeto
 
-- 🌐 **Aplicação no Streamlit Cloud:**  
+- 🌐 **Aplicação no Streamlit Cloud + Dashboard Analítico:**  
   [Acessar aplicação](https://techchallenge4postechdataanalyticsfiap-jcwkcts8n92sjk8vkqt8ds.streamlit.app/)
 
 - 💻 **Repositório no GitHub:**  
