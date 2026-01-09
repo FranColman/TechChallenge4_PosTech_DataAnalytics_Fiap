@@ -1,159 +1,142 @@
 # TechChallenge4_PosTech_DataAnalytics_Fiap
 
-🏥 Sistema Preditivo e Analítico de Obesidade
+# 🏥 Sistema Preditivo e Analítico de Obesidade
 
-Tech Challenge – Fase 4 | Pós-Graduação em Data Analytics
+**Tech Challenge – Fase 4 | Pós-Graduação em Data Analytics**
 
-📌 Visão Geral
+---
 
-  Este projeto apresenta o desenvolvimento de um sistema preditivo de obesidade integrado a um dashboard analítico, com foco em aplicar, de forma prática, os conceitos aprendidos na Fase 4 do curso de Data Analytics.
-  
-  A solução combina Machine Learning, engenharia de dados, avaliação de modelos e visualização analítica, entregando uma aplicação funcional que simula um cenário real de uso em apoio à tomada de decisão.
+## 📌 Visão Geral
 
-⚠️ Aviso importante
-  Este sistema possui finalidade acadêmica e analítica, servindo como apoio à decisão. Ele não substitui avaliação médica ou profissional especializada.
+Este projeto apresenta o desenvolvimento de um **sistema preditivo de obesidade integrado a um dashboard analítico**, com foco em **apoio à tomada de decisão**.
 
-🎯 Objetivo do Projeto
+A solução foi construída como parte do **Tech Challenge – Fase 4**, com o objetivo de **colocar em prática os conceitos aprendidos ao longo da pós-graduação em Data Analytics**, integrando:
 
-  O projeto possui dois objetivos principais:
-  
-  Sistema Preditivo
-  Estimar o nível de obesidade de um indivíduo com base em dados demográficos, físicos e comportamentais, utilizando um modelo de Machine Learning.
-  
-  Dashboard Analítico
-  Fornecer uma visão exploratória e estratégica dos dados, permitindo identificar padrões, perfis e relações relevantes para análise de negócio.
+- Análise exploratória de dados  
+- Modelagem estatística  
+- Aprendizado de Máquina  
+- Visualização de dados orientada ao negócio  
 
-👥 Autores
+O sistema permite tanto a **predição do nível de obesidade de um indivíduo**, quanto a **análise de padrões populacionais** relacionados a hábitos, perfil físico e histórico familiar.
 
-  Franco Colmán
-  
-  Hugo Duran
+---
 
-  Projeto desenvolvido como parte do Tech Challenge da Fase 4, com foco em colocar em prática os conceitos estudados na pós-graduação em Data Analytics, integrando modelagem estatística, aprendizado de máquina e visualização de dados.
+## 🎯 Objetivo do Projeto
 
-🧠 Estratégia de Machine Learning
-📊 Base de Dados
+O principal objetivo é demonstrar, de forma prática e aplicada, como técnicas de **Machine Learning** e **Analytics** podem ser utilizadas para:
 
-  Utilizamos o Obesity Dataset, que contém informações sobre:
-  
-  Dados demográficos: Age, Gender
-  
-  Medidas físicas: Height, Weight
-  
-  Hábitos alimentares e estilo de vida:
-  FCVC, NCP, CH2O, FAF, TUE, FAVC, CAEC, CALC
-  
-  Histórico e comportamento:
-  family_history, SMOKE, SCC, MTRANS
-  
-  Variável alvo: Obesity (7 classes)
-  
-  O problema é modelado como uma classificação multiclasse, conforme explorado ao longo da Fase 4.
+- Estimar o nível de obesidade com base em características individuais
+- Identificar padrões relevantes no conjunto de dados
+- Traduzir informações técnicas em **insights claros para o negócio**
 
-⚙️ Modelo Utilizado
+O sistema **não substitui avaliação clínica**, sendo uma ferramenta de **apoio analítico e educacional**.
 
-  O algoritmo escolhido foi o Gradient Boosting, por sua capacidade de:
-  
-  Capturar relações não lineares
-  
-  Trabalhar bem com dados tabulares
-  
-  Modelar interações complexas entre variáveis
-  
-  Apresentar alto desempenho em problemas reais de classificação
-  
-  O modelo foi implementado dentro de um pipeline, contendo:
-  
-  Separação de variáveis numéricas e categóricas
-  
-  One-Hot Encoding para variáveis categóricas
-  
-  Padronização das variáveis numéricas
-  
-  Integração completa do pré-processamento ao modelo
-  
-  Essa abordagem garante consistência, reprodutibilidade e segurança entre treinamento e inferência.
+---
 
-📈 Avaliação do Modelo
+## 🧠 Modelo de Machine Learning
 
-  O desempenho foi avaliado utilizando:
-  
-  Acurácia
-  
-  Precisão
-  
-  Recall
-  
-  F1-score por classe
-  
-  O modelo apresentou acurácia aproximada de 95%, com desempenho consistente entre as classes, demonstrando boa capacidade de generalização.
+O modelo utilizado neste projeto é o **Gradient Boosting Classifier**, escolhido por apresentar:
 
-🖥️ Sistema Preditivo (Aplicação)
+- Boa performance em dados tabulares
+- Capacidade de capturar relações não lineares
+- Robustez frente a variáveis heterogêneas (numéricas e categóricas)
 
-  A aplicação foi desenvolvida com Streamlit, oferecendo uma interface simples e intuitiva.
-  
-  Funcionalidades principais:
-  
-  Entrada de dados do paciente (interface em português)
-  
-  Conversão automática para o padrão do pipeline (inglês)
-  
-  Cálculo automático do IMC
-  
-  Predição do nível de obesidade
-  
-  Exibição das probabilidades por classe, aumentando a transparência do modelo
+---
 
-📊 Dashboard Analítico
+### 🔍 Pipeline do Modelo
 
-  Além da predição individual, o sistema inclui uma área de análise exploratória, com gráficos voltados à visão de negócio.
-  
-  Principais análises:
-  
-  Distribuição dos níveis de obesidade (contagem e percentual)
-  
-  Dispersão de peso × altura por classe
-  
-  Composição de obesidade por gênero (100% empilhado)
-  
-  Heatmap de faixa etária × obesidade
-  
-  Heatmap de correlação entre variáveis numéricas
-  
-  Gráfico radar com perfil médio de hábitos por nível de obesidade
-  
-  Essas análises permitem identificar padrões populacionais, clusters e relações relevantes para tomada de decisão.
+O pipeline de Machine Learning inclui:
 
-🚀 Deploy
+- **Pré-processamento**
+  - Padronização de variáveis numéricas
+  - Codificação de variáveis categóricas
+- **Treinamento**
+  - Modelo: `GradientBoostingClassifier`
+- **Avaliação**
+  - Métrica principal: **Acurácia**
+  - Resultado obtido: **95% de acurácia**
 
-  A aplicação foi:
-  
-  Versionada com Git e GitHub
-  
-  Publicada no Streamlit Cloud
-  
-  Configurada com requirements.txt e runtime.txt
-  
-  Disponibilizada para acesso remoto
-  
-  Isso garante reprodutibilidade, portabilidade e aderência a boas práticas de entrega.
+O pipeline completo foi serializado e salvo no arquivo:
 
-🎓 Conclusão
+---
 
-  Este projeto consolida os aprendizados da Fase 4 da pós-graduação em Data Analytics, integrando:
-  
-  Engenharia de dados
-  
-  Machine Learning com Gradient Boosting
-  
-  Avaliação de modelos
+## 📊 Dashboard Analítico
 
-  Visualização analítica
-  
-  Deploy de aplicações de dados
-  
-  A solução simula um cenário real de Data Analytics, indo além do modelo isolado e entregando valor de negócio por meio de um sistema completo.
-  
-  LINK - STREAMLIT: https://techchallenge4postechdataanalyticsfiap-jcwkcts8n92sjk8vkqt8ds.streamlit.app/
-  
-  LINK - GITHUB: https://github.com/FranColman/TechChallenge4_PosTech_DataAnalytics_Fiap
+Além da predição individual, o projeto conta com um **dashboard analítico interativo**, que permite explorar o comportamento da base de dados sob uma ótica de negócio.
+
+### Principais análises disponíveis:
+
+- Distribuição dos níveis de obesidade (contagem e percentual)
+- Relação entre peso e altura por nível de obesidade
+- Composição de obesidade por gênero (100% empilhado)
+- Distribuição de níveis por faixa etária (heatmap)
+- Correlação entre variáveis numéricas
+- Perfil médio de hábitos por nível de obesidade (radar normalizado)
+
+Essas visualizações ajudam a responder perguntas como:
+- Onde estão concentrados os maiores riscos?
+- Como hábitos impactam os níveis de obesidade?
+- Existem diferenças relevantes por gênero ou idade?
+
+---
+
+## 🖥️ Aplicação
+
+A aplicação foi desenvolvida em **Streamlit**, com foco em:
+
+- Interface limpa e intuitiva
+- Boa usabilidade
+- Navegação clara entre predição e análises
+
+### Funcionalidades principais:
+
+- Formulário de predição individual
+- Cálculo automático de IMC
+- Exibição da classe prevista
+- Visualização de métricas e gráficos analíticos
+- Download do dataset
+
+---
+
+## ☁️ Deploy
+
+O projeto é totalmente compatível com **Streamlit Cloud**, permitindo que a aplicação seja disponibilizada publicamente de forma simples.
+
+### Requisitos para deploy
+
+- Repositório versionado no **GitHub**
+- Arquivo `requirements.txt` com todas as dependências do projeto
+- Arquivo `runtime.txt` especificando a versão do Python utilizada
+- Modelo treinado (`obesity_pipeline.joblib`) incluído no repositório
+
+---
+
+## 👥 Autores
+
+Projeto desenvolvido por:
+
+- **Franco Colmán**
+- **Hugo Duran**
+
+Como parte da **Pós-Graduação em Data Analytics**, com foco na **aplicação prática dos conceitos estudados na Fase 4 do curso**.
+
+---
+
+## 📌 Considerações Finais
+
+Este projeto consolida conhecimentos técnicos e analíticos em uma **solução completa de Data Analytics**, cobrindo todo o ciclo:
+
+- Análise exploratória de dados  
+- Modelagem estatística e Machine Learning  
+- Construção de um sistema preditivo  
+- Desenvolvimento de um dashboard analítico orientado ao negócio  
+
+A solução demonstra como dados podem ser transformados em **insights acionáveis**, reforçando a importância da **visão de negócio aliada à modelagem e visualização de dados**.
+
+ ## 🔗 Links do Projeto
+
+- 🌐 **Aplicação no Streamlit Cloud:**  
+  [Acessar aplicação](https://techchallenge4postechdataanalyticsfiap-jcwkcts8n92sjk8vkqt8ds.streamlit.app/)
+
+- 💻 **Repositório no GitHub:**  
+  [Acessar repositório](https://github.com/FranColman/TechChallenge4_PosTech_DataAnalytics_Fiap)
